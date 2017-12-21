@@ -1,0 +1,161 @@
+---
+title: "Reproducible Research: Peer Assessment 1"
+output: 
+  html_document:
+    keep_md: true
+---
+
+
+## Loading and preprocessing the data
+
+```{r message=FALSE}
+library(chron)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(xtable)
+```
+
+## The section below deals with reading in the csv file, creating a new data-time variable. Changing the formats of 
+## interval and Date into time and Date class.
+
+```{r}
+filepath<- "E:\\johns hopkins\\RepData_PeerAssessment1-master\\activity.csv"
+f1<- read.csv(file =filepath,stringsAsFactors = FALSE )
+
+# convert date from vector of charachters into date object.
+f1$date<- as.Date(x = f1$date,format ="%Y-%m-%d")
+# interval in to be properly formatted in the TIME class instead of being a integer.
+f1$interval<-sprintf(fmt = "%04d",f1$interval)
+# ensuring 04 above, will left pad with zeros.
+# now use the format function.
+f1$interval<-format(x =strptime(x = f1$interval,format = "%H%M"),format = "%H:%M")
+# the strptime --> gives a POSIXlt object with the current time. This date portion is striped out by the format command.
+f1$interval<-paste(f1$interval,":00",sep = "")
+# convert the interval into a time object(chron)
+f1$interval<-times(x = f1$interval)
+
+# create a new variable datetime. This will then be useful for plotting on the x-axis.
+# combine the date and time into a single new column
+f1$date_time<-ymd_hms(paste(f1$date,f1$interval))
+
+```
+
+
+## What is mean total number of steps taken per day?
+### The data is taken over a two month period. We shall aggregate on a per day basis.
+```{r}
+
+
+ 
+# to find the mean/median of the total number of steps /day.
+rsum<-aggregate(formula=f1$steps~f1$date,data = f1,FUN = sum)
+#rsum
+# WE need to calulate the mean of the sum( total number of steps /day)
+mean_total_steps_day<- mean(x = rsum$`f1$steps`,na.rm = TRUE)
+#mean_total_steps_day
+# similarly for median
+median_total_steps_day<-median(x = rsum$`f1$steps`,na.rm = TRUE)
+# construct the histogram
+ g<- ggplot(data = rsum,mapping = aes(x = rsum$`f1$steps`))
+ g+geom_histogram()+stat_bin(binwidth = 500)+xlab("Total number of steps per day")
+
+```
+
+The  mean total number of steps per day is `r mean_total_steps_day` .<br>
+The median total number of steps per day is `r median_total_steps_day`.<br>
+
+
+## What is the average daily activity pattern?
+
+```{r}
+# make a plot
+g<- ggplot(data = f1,mapping = aes(x = f1$date_time,y = f1$steps))
+g+geom_line()
+```
+
+```{r}
+result<-f1%>%filter(f1$steps==max(f1$steps,na.rm = TRUE))
+#print(result)
+max_steps <-result$steps
+rinterval<-result$date_time
+
+```
+The max number of steps are `r max_steps`. The 5 minute interval is `r rinterval`
+
+## Imputing missing values
+
+```{r}
+ rcount<-sum(is.na(f1$steps))
+```
+
+## The total number of missing values equals `r rcount`.
+
+### We shall fill the missing data using the median value, since the distribution is skewed.
+```{r}
+# insert the median value.
+f2<- f1%>%group_by(f1$date)%>%summarise(Median=median(f1$steps,na.rm = TRUE))
+#print(f2)
+f1$steps<-replace(f1$steps,is.na(f1$steps),values = f2$Median)
+
+```
+We shall now find the summary stats with the new imputed values.
+```{r}
+
+
+
+rsum1<-aggregate(formula=f1$steps~f1$date,data = f1,FUN = sum)
+#rsum1
+# WE need to calulate the mean of the sum( total number of steps /day)
+mean_total_steps_day1<- mean(x = rsum1$`f1$steps`,na.rm = TRUE)
+#mean_total_steps_day
+# similarly for median
+median_total_steps_day1<-median(x = rsum1$`f1$steps`,na.rm = TRUE)
+
+# construct the histogram
+ g<- ggplot(data = rsum1,mapping = aes(x = rsum1$`f1$steps`))
+ g+geom_histogram()+stat_bin(binwidth = 500)+xlab("Total number of steps per day")
+
+```
+
+
+
+
+
+
+
+
+
+We have imputed the median value to replace the NAs.The median in most cases was 0.
+
+<br>The new mean total number of steps/day and new median total number of steps /day areas follows:
+<br>mean: `r mean_total_steps_day1`
+<br>median:`r median_total_steps_day1`
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+# create a new factor variable.
+f1<-mutate(f1,type_day =ifelse(weekdays(x = f1$date,abbreviate = FALSE) %in% c('Saturday','Sunday'),yes = 'Weekend',no = 'weekday'))
+f1$type_day<-factor(f1$type_day)
+```
+
+We shall make a time-series plot using the ggplot2 system
+```{r}
+g<- ggplot(data = f1,mapping = aes(x = f1$date_time,y = f1$steps))
+g+geom_line()+ facet_grid(f1$type_day~.)
+
+f1%>%group_by(f1$type_day)%>%summarize(Average_no_of_steps = mean(f1$steps,na.rm = TRUE),standard_deviation = sd(f1$steps,na.rm = TRUE))
+```
+
+As shown by the summary table above there is no difference in the average activity on a weekday as compared to a weekend.
+
+
+
+
+
+
+
+
+
+
